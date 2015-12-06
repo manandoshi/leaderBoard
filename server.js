@@ -27,6 +27,8 @@ function makeid()
 var allowedID=makeid;
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
+app.use(cookieParser());
+app.use('/', express.static(__dirname));
 
 app.post('/login', function(req,res){
 	var username = req.body.username;
@@ -46,7 +48,9 @@ app.post('/login', function(req,res){
 	res.json(data);
 
 });
-/*
+
+/* 
+// RUN ONCE
 request('http://moodi.org/api/events', function (error, response, req) {
     //Check for error
     if(error){
@@ -67,10 +71,14 @@ request('http://moodi.org/api/events', function (error, response, req) {
     for (var i = req["data"].length - 1; i >= 0; i--) {
     	connection.query("INSERT INTO events VALUES(?,?,'','','','','','','','','','','','')",[ req["data"][i]["event_id"] , req["data"][i]["event_name"] ] ,function(err, rows, fields){
 				if(!!err){
+					console.log(err);
 					console.log("Error Adding Event", err);
+					console.log(err);
 					//console.log(err);
+					console.log(err);
 				}else{
 					console.log("Event Added Successfully ", err);
+					console.log(err);
 				}
 			}
 		);
@@ -82,307 +90,341 @@ request('http://moodi.org/api/events', function (error, response, req) {
 
 });
 */
-app.post('/updateEventStanding1',function(req,res){
-	var data = {
-			"data":"",
-			"error":1,
-			"events":"",
-			"college":""
-		};
-	if(req.cookies["code"]==allowedID){	
+function add_team (clg_id,points,clg_name,position,event_id,ret,res) {
+	console.log("\n ADDING NEW CLG");
+	connection.query("SELECT * FROM clg WHERE clg_id="+clg_id,function(err,rows,fields){
 		
-		var first_id = req.body.first_id;
-		var first_points = Number(req.body.first_points);
-		var first_name = req.body.first_name;
+		if (err){
+			console.log(err);
+			ret.error += 32;
+			ret.message = err;
+			res.json(ret);
+			//return;
+		}
+		if(rows.length == 1){
+			console.log("\n CLG found in DB");
+			var p = Number(rows[0].points)+points;
+			var s = rows[0][position]+","+String(event_id);
+			s = (s.length && s[0] == ',') ? s.slice(1) : s;
 
-		var event_id = req.body.event_id;
-		
-		if(!!first_id && !!first_name && !!first_points && !!event_id){
-			connection.query("UPDATE events SET first_name ='" + first_name + "', first_id=" + first_id + ", first_points=" + first_points + " WHERE event_id = " + event_id,function(err, rows, fields){
-				if(!!err){
-					data["events"] = "Error updating: "+ err;
+			connection.query("UPDATE clg SET points="+p+","+position+"='"+s+"' WHERE clg_id="+clg_id, function(err,rows,fields){
+				if(err){
 					console.log(err);
-				}else{
-					data["error"] = 0;
-					data["events"] = "EventsDB updated Successfully";
-					
-					connection.query("SELECT * FROM colleges WHERE college_id="+first_id, function(err, rows, fields){
-						if(rows.length==1){
-							prevPoints = Number(rows[0]["points"]);
-							first_points+=prevPoints;
-							prevID = rows["events"];
-							event_id = String(prevID) + ", " + String(event_id);
-							connection.query("UPDATE colleges SET college_name ='" + first_name + "', points=" + first_points + ", events="+ event_id +" WHERE college_id = " + college_id ,function(err, rows, fields){
-								if(!!err){
-									data["error"]=1;
-									data["college"]="collegeDB update FAILED";
-									console.log("collegeDB update FAILED");
-								}
-								else{
-									data["college"]="collegeDB updated";
-									console.log("collegeDB updated");
-								}
-							});	
-						}
-						else{
-							connection.query("INSERT INTO colleges VALUES(?,?,?,?)",[ first_id, first_points, first_name, event_id ] ,function(err, rows, fields){
-								if(!!err){
-									data["error"]=1;
-									data["college"]="collegeDB update FAILED";
-									console.log("collegeDB update FAILED");
-								}
-								else{
-									data["college"]="collegeDB updated";
-									console.log("collegeDB updated");
-								}
+					ret.error += 8;
+					ret.message = err;
+					res.json(ret);
+					//return;
+				}
+				console.log("\n UPDATED DB");
+			});
+		}
+		//else if(rows.length==0){
+		else{
+			console.log("\n NOT FOUND IN DB");
+			connection.query("INSERT INTO clg (clg_id,clg_name,points,"+ position +") VALUES ("+clg_id+",'"+clg_name+"',"+points+","+event_id+")", function(err,rows,fields){
+				if(err){
+					console.log(err);
+					ret.error += 16;
+					ret.message = err;
+					res.json(ret);
+					//return;
+				}
+				console.log("\n ADDED CLG entry");
+			});
+		}
+	});
+	res.json(ret);
+}
 
+app.post('/addResult',function(req,res){
+	if(req.cookies["code"]==allowedID){
+		var ret = {
+				"error":0,
+				"message":"Done :)",
+			};
+
+		var clg_id 		= 	Number(req.body.clg_id);
+		var points 		= 	Number(req.body.points);
+		var clg_name 	= 	req.body.clg_name;
+		var event_id 	= 	Number(req.body.event_id);
+		var pos 		= 	Number(req.body.position);
+
+		var old_clg_id=null;
+		var old_points=null;
+		var old_clg_name=null;
+
+		var position;
+		//console.log("Pos:",pos)
+		if (pos === 1) {
+			position = "first";
+		}
+		else if(pos === 2){
+			position = "second";
+		}
+		else if(pos === 3){
+			position = "third";
+		}
+		else if(pos === 4){
+			position = "fourth";
+		}
+		else{
+			ret.message = "Invalid pos.";
+			ret.error+=1;
+			res.json(ret);
+			return
+		}
+
+		if(!clg_id || !clg_name || !points || !event_id || !pos){
+			ret.error += 2;
+			ret.message = "Required data: clg_id, points, clg_name, event_id, position";
+			res.json(ret);
+			return
+		}
+
+		connection.query("SELECT * FROM events WHERE event_id=" + event_id, function(err,rows,fields){
+			if (err){
+				console.log(err);
+				ret.error += 256;
+				ret.message = err;
+				res.json(ret);
+				//return;
+			}
+			console.log("\n CHECK-EVENT");
+			if (rows.length==1) {
+				//console.log("rows[0]:" ,rows[0]);
+				old_clg_id 		= 	rows[0][position+"_id"];
+				old_clg_name	= 	rows[0][position+"_name"];
+				//console.log("!!old_clg_name:",old_clg_name," !!old_clg_id:", old_clg_id);
+				old_points		=	Number(rows[0][position+"_points"]);
+				console.log("\n Old winners found?: \n");
+				console.log("old_clg_name:",old_clg_name," old_clg_id:", old_clg_id);
+				if(old_points === points && old_clg_name===clg_name && old_clg_id===clg_id){
+					//return;
+				}
+				if(old_clg_id){
+					console.log("\n YESS!");
+					connection.query("SELECT * FROM clg WHERE clg_id="+old_clg_id,function(err,rows,fields){
+						if (err){
+							console.log("64:",err);
+							ret.error += 64;
+							ret.message = err;
+							res.json(ret);
+							//return;
+						}
+						if(rows.length==1){
+							var p = rows[0].points-old_points;
+							var s = rows[0][position].split(",");
+							console.log("We need to remove event from s:", s);
+							for(var i = s.length - 1; i >= 0; i--) {
+			    				if(Number(s[i]) === Number(event_id)) {
+			       					console.log("Uh oh");
+			       					s.splice(i, 1);
+			       					break;
+			    				}
+							}
+							console.log("New s:", s);
+
+							pString = s.join(",");
+							console.log("pString:", pString);
+							connection.query("UPDATE clg SET points = "+p+", "+position+"='"+pString+"' WHERE clg_id="+old_clg_id,function(err,rows,fields){
+								if(err){
+									console.log("128:",err);
+									ret.error += 128;
+									ret.message = err;
+									res.json(ret);
+									//return;
+								}
+								console.log("\n DELETE PREV DATA");
+								add_team(clg_id,points,clg_name,position,event_id,ret,res);
 							});
 						}
 					});
-
 				}
-				res.json(data);
+				else{
+					add_team(clg_id,points,clg_name,position,event_id,ret,res);
+				}
+			};
+			connection.query("UPDATE events SET "+position+"_name='"+clg_name+"', "+position+"_id="+clg_id+", "+position+"_points="+points+" WHERE event_id="+event_id,function(err,rows,fields){
+				if (err){
+					console.log(err);
+					ret.error += 4;
+					ret.message = err;
+					res.json(ret);
+					//return;
+				}
 			});
-		}else{
-			data["data"] = "Please provide all required data";
-			res.json(data);
-		}
-		//console.log(data);
+		});
 	}
 	else{
-		//console.log("Invalid credentials");
-		data["data"]="Invalid Credentials";
-		data["error"]=-1;
-		res.json(data);
-	}
+		console.log("Unauthorized access detected")
+	}	
 });
 
-app.post('/updateEventStanding2',function(req,res){
-	var data = {
-			"error":1,
-			"data":"",
-			"events":"",
-			"college":""
-		};
-	if(req.cookies["code"]==allowedID){	
-		
-		var second_id = req.body.second_id;
-		var second_points = Number(req.body.second_points);
-		var second_name = req.body.second_name;
-
-		var event_id = req.body.event_id;
-		
-		if(!!second_id && !!second_name && !!second_points && !!event_id){
-			connection.query("UPDATE events SET second_name ='" + second_name + "', second_id=" + second_id + ", second_points=" + second_points + " WHERE event_id = " + event_id,function(err, rows, fields){
-				if(!!err){
-					data["data"] = "Error updating: "+ err;
-					console.log(err);
-				}else{
-					statusArray[status]++;
-					data["error"] = 0;
-					data["events"] = "EventsDB updated Successfully";
-					
-					connection.query("SELECT * FROM colleges WHERE college_id="+second_id, function(err, rows, fields){
-						if(rows.length==1){
-							prevPoints = Number(rows[0]["points"]);
-							second_points+=prevPoints;
-							prevID = rows["events"];
-							event_id = String(prevID) + ", " + String(event_id);
-							connection.query("UPDATE colleges SET college_name ='" + second_name + "', points=" + second_points + ", events="+ event_id +" WHERE college_id = " + college_id ,function(err, rows, fields){
-								if(!!err){
-									data["error"]=1;
-									data["college"]="collegeDB update FAILED";
-									console.log("collegeDB update FAILED");
-								}
-								else{
-									data["college"]="collegeDB updated";
-									console.log("collegeDB updated");
-								}
-							});	
-						}
-						else{
-							connection.query("INSERT INTO colleges VALUES(?,?,?,?)",[ second_id, second_points, second_name, event_id ] ,function(err, rows, fields){
-								if(!!err){
-									data["error"]=1;
-									data["college"]="collegeDB update FAILED";
-									console.log("collegeDB update FAILED");
-								}
-								else{
-									data["college"]="collegeDB updated";
-									console.log("collegeDB updated");
-								}
-
-							});
-						}
-					});
-				}
-				res.json(data);
-			});
-		}else{
-			data["data"] = "Please provide all required data";
-			res.json(data);
+app.get("/leaderboard", function(req,res){
+	connection.query("SELECT * FROM clg ORDER BY points DESC", function(err,rows,fields){
+		if(!!err){
+			console.log("ERR260: " + err);
+			//res.json(err);
+			//return;
 		}
-		//console.log(data);
-	}
-	else{
-		//console.log("Invalid credentials");
-		data["data"]="Invalid Credentials";
-		data["error"]=-1;
-		res.json(data);
-	}
+		res.json(rows);
+	});
 });
 
-app.post('/updateEventStanding3',function(req,res){
-	var data = {
-			"error":1,
-			"events":"",
-			"college":"",
-			"data":""
-		};
-	if(req.cookies["code"]==allowedID){	
-		
-		var third_id = req.body.third_id;
-		var third_points = Number(req.body.third_points);
-		var third_name = req.body.third_name;
-
-		var event_id = req.body.event_id;
-		
-		if(!!third_id && !!third_name && !!third_points && !!event_id){
-			connection.query("UPDATE events SET third_name ='" + third_name + "', third_id=" + third_id + ", third_points=" + third_points + " WHERE event_id = " + event_id,function(err, rows, fields){
-				if(!!err){
-					data["data"] = "Error updating: "+ err;
-					console.log(err);
-				}else{
-					statusArray[status]++;
-					data["error"] = 0;
-					data["events"] = "EventsDB updated Successfully";
-					
-					connection.query("SELECT * FROM colleges WHERE college_id="+third_id, function(err, rows, fields){
-						if(rows.length==1){
-							prevPoints = Number(rows[0]["points"]);
-							third_points+=prevPoints;
-							prevID = rows["events"];
-							event_id = String(prevID) + ", " + String(event_id);
-							connection.query("UPDATE colleges SET college_name ='" + third_name + "', points=" + third_points + ", events="+ event_id +" WHERE college_id = " + college_id ,function(err, rows, fields){
-								if(!!err){
-									data["error"]=1;
-									data["college"]="collegeDB update FAILED";
-									console.log("collegeDB update FAILED");
-								}
-								else{
-									data["college"]="collegeDB updated";
-									console.log("collegeDB updated");
-								}
-							});	
-						}
-						else{
-							connection.query("INSERT INTO colleges VALUES(?,?,?,?)",[ third_id, third_points, third_name, event_id ] ,function(err, rows, fields){
-								if(!!err){
-									data["error"]=1;
-									data["college"]="collegeDB update FAILED";
-									console.log("collegeDB update FAILED");
-								}
-								else{
-									data["college"]="collegeDB updated";
-									console.log("collegeDB updated");
-								}
-
-							});
-						}
-					});
-				}
-				res.json(data);
-			});
-		}else{
-			data["data"] = "Please provide all required data";
-			res.json(data);
+app.get("/eventlist",function(req,res){
+	connection.query("SELECT * FROM events", function(err,rows,fields){
+		if(err){
+			console.log(err);
 		}
-		//console.log(data);
-	}
-	else{
-		//console.log("Invalid credentials");
-		data["data"]="Invalid Credentials";
-		data["error"]=-1;
-		res.json(data);
-	}
+		res.json(rows);
+	});
 });
 
-
-app.post('/updateEventStanding4',function(req,res){
-	var data = {
-			"error":1,
-			"data":"",
-			"events":"",
-			"college":""
-		};
-	if(req.cookies["code"]==allowedID){	
-		
-		var fourth_id = req.body.fourth_id;
-		var fourth_points = Number(req.body.fourth_points);
-		var fourth_name = req.body.fourth_name;
-
-		var event_id = req.body.event_id;
-		
-		if(!!fourth_id && !!fourth_name && !!fourth_points && !!event_id){
-			connection.query("UPDATE events SET fourth_name ='" + fourth_name + "', fourth_id=" + fourth_id + ", fourth_points=" + fourth_points + " WHERE event_id = " + event_id,function(err, rows, fields){
-				if(!!err){
-					data["data"] = "Error updating: "+ err;
-					console.log(err);
-				}else{
-					statusArray[status]++;
-					data["error"] = 0;
-					data["events"] = "EventsDB updated Successfully";
-					
-					connection.query("SELECT * FROM colleges WHERE college_id="+fourth_id, function(err, rows, fields){
-						if(rows.length==1){
-							prevPoints = Number(rows[0]["points"]);
-							fourth_points+=prevPoints;
-							prevID = rows["events"];
-							event_id = String(prevID) + ", " + String(event_id);
-							connection.query("UPDATE colleges SET college_name ='" + fourth_name + "', points=" + fourth_points + ", events="+ event_id +" WHERE college_id = " + college_id ,function(err, rows, fields){
-								if(!!err){
-									data["error"]=1;
-									data["college"]="collegeDB update FAILED";
-									console.log("collegeDB update FAILED");
-								}
-								else{
-									data["college"]="collegeDB updated";
-									console.log("collegeDB updated");
-								}
-							});	
-						}
-						else{
-							connection.query("INSERT INTO colleges VALUES(?,?,?,?)",[ fourth_id, fourth_points, fourth_name, event_id ] ,function(err, rows, fields){
-								if(!!err){
-									data["error"]=1;
-									data["college"]="collegeDB update FAILED";
-									console.log("collegeDB update FAILED");
-								}
-								else{
-									data["college"]="collegeDB updated";
-									console.log("collegeDB updated");
-								}
-
-							});
-						}
-					});
-				}
-				res.json(data);
-			});
-		}else{
-			data["data"] = "Please provide all required data";
-			res.json(data);
+app.get("/eventlistshort",function(req,res){
+	connection.query("SELECT event_id, event_name FROM events", function(err,rows,fields){
+		if(err){
+			console.log(err);
 		}
-		//console.log(data);
+		res.json(rows);
+	});
+});
+
+app.post("/details",function(req,res){
+	clg_id = req.body.clg_id;
+	
+	var first;
+	var second;
+	var third;
+	var fourth;
+
+	var data = {
+		"clg_name":"",
+		"first":"",
+		"second":" ",
+		"third":" ",
+		"fourth":" "
 	}
-	else{
-		//console.log("Invalid credentials");
-		data["data"]="Invalid Credentials";
-		data["error"]=-1;
-		res.json(data);
-	}
+
+	connection.query("SELECT * FROM clg WHERE clg_id="+clg_id,function(err,rows,fields){
+		if(err){
+			console.log("damn it");
+		}
+		if(rows.length==1){
+			first = ((rows[0].first)?(rows[0].first.split(",")):([]));
+			second = ((rows[0].second)?(rows[0].second.split(",")):([]));
+			third = ((rows[0].third)?(rows[0].third.split(",")):([]));
+			fourth = ((rows[0].fourth)?(rows[0].fourth.split(",")):([]));
+			data.clg_name = rows[0].clg_name;
+			console.log("\n first:", first);
+		}
+		var flag = [false,false,false,false];
+
+		var fstr = "";
+		var sstr = "";
+		var tstr = "";
+		var fostr = "";
+
+		for (var i = 0; i < first.length; i++) {
+			fstr = fstr + " event_id="+first[i];
+			if(i != first.length-1){
+				fstr += " OR";
+			}
+		};
+		for (var i = 0; i < second.length; i++) {
+			sstr = sstr + " event_id="+second[i];
+			if(i != second.length-1){
+				sstr += " OR";
+			}
+		};
+		for (var i = 0; i < third.length; i++) {
+			tstr = tstr + " event_id="+third[i];
+			if(i != third.length-1){
+				tstr += " OR";
+			}
+		};
+		for (var i = 0; i < fourth.length; i++) {
+			fostr = fostr + " event_id="+fourth[i];
+			if(i != fourth.length-1){
+				fostr += " OR";
+			}
+		};
+
+		connection.query("SELECT event_name, first_points FROM events WHERE"+ fstr,function(err,rows,fields){
+			if(err){
+				console.log("ERR 314");
+			}
+			//console.log(rows[0].event_name);
+			data.first = ((rows)?(rows):("-"));
+			console.log(data.first);
+			connection.query("SELECT event_name, second_points FROM events WHERE"+ sstr,function(err,rows,fields){
+				if(err){
+					console.log("ERR 314");
+				}
+				//console.log(rows[0].event_name);
+				data.second = ((rows)?(rows):('-'));
+				console.log("II: ",data.second);
+				connection.query("SELECT event_name, third_points FROM events WHERE"+ tstr,function(err,rows,fields){
+					if(err){
+						console.log("ERR 314");
+					}
+					//console.log(rows[0].event_name);
+					data.third = ((rows)?(rows):("-"));
+					console.log(data.first);
+					connection.query("SELECT event_name, fourth_points FROM events WHERE"+ fostr,function(err,rows,fields){
+						if(err){
+							console.log("ERR 314");
+						}
+						//console.log(rows[0].event_name);
+						data.fourth = ((rows)?(rows):("-"));
+						console.log(data.first);
+						res.json(data);
+					});
+				});
+			});
+		});
+
+		/*for (var i = 0; i < first.length; i++) {
+			connection.query("SELECT event_name FROM events WHERE event_id="+Number(first[i]),function(err,rows,fields){
+				if(err){
+					console.log("ERR 314");
+				}
+				//console.log(rows[0].event_name);
+				data.first+=(rows[0].event_name+",");
+				//console.log(data.first);
+				if(i == first.length-1 ){
+					flag[0]=true;
+				}
+			});
+		};
+		for (var i = 0; i < second.length; i++) {
+			connection.query("SELECT event_name FROM events WHERE event_id="+Number(second[i]),function(err,rows,fields){
+				data.second+=(rows[0].event_name+",");
+				if(i == second.length-1 ){
+					flag[1]=true;
+				}
+			});
+		};
+		for (var i = 0; i < third.length; i++) {
+			connection.query("SELECT event_name FROM events WHERE event_id="+Number(third[i]),function(err,rows,fields){
+				data.third+=(rows[0].event_name+",");
+				if(i == third.length-1 ){
+					flag[2]=true;
+				}
+			});
+		};
+		for (var i = 0; i < fourth.length; i++) {
+			connection.query("SELECT event_name FROM events WHERE event_id="+Number(fourth[i]),function(err,rows,fields){
+				data.fourth+=(rows[0].event_name+",");
+				if(i == fourth.length-1 ){
+					flag[0]=true;
+				}
+
+			});
+		};*/
+		
+	});
 });
 
 http.listen(12346,function(){
-	//console.log("Connected & Listen to port 12345");
+	console.log("Connected & Listen to port 12345");
 });
