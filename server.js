@@ -425,6 +425,10 @@ app.post("/details",function(req,res){
 	});
 });
 
-http.listen(12346,function(){
+
+var port =  process.env.OPENSHIFT_NODEJS_PORT || 8080;   // Port 8080 if you run locally
+var address =  process.env.OPENSHIFT_NODEJS_IP || "127.0.0.1"; // Listening to localhost if you run locally
+app.listen(port, address);
+/*http.listen(12346,function(){
 	console.log("Connected & Listen to port 12345");
-});
+});*/
