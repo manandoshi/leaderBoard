@@ -7,10 +7,11 @@ var http = require('http').Server(app);
 var mysql = require('mysql');
 var bodyParser = require("body-parser");
 var connection = mysql.createConnection({
-		host     : 'localhost',
-		user     : 'root',
-		password : 'Qwerty@314',
-		database : 'mi2k15',
+		host     	: OPENSHIFT_MYSQL_DB_HOST,
+		port 		: OPENSHIFT_MYSQL_DB_PORT, 
+		user     	: 'adminYJeMgL8',
+		password 	: 'ibnIhzhqJ4vv',
+		database 	: 'fuehrer',
 	});
 
 function makeid()
