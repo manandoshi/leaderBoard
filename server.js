@@ -7,10 +7,9 @@ var http = require('http').Server(app);
 var mysql = require('mysql');
 var bodyParser = require("body-parser");
 var connection = mysql.createConnection({
-		host     	: OPENSHIFT_MYSQL_DB_HOST,
-		port 		: OPENSHIFT_MYSQL_DB_PORT, 
-		user     	: 'adminYJeMgL8',
-		password 	: 'ibnIhzhqJ4vv',
+		host     	: 'localhost',
+		user     	: 'root',
+		password 	: 'Qwerty@314',
 		database 	: 'fuehrer',
 	});
 
@@ -182,7 +181,7 @@ app.post('/addResult',function(req,res){
 			return
 		}
 
-		connection.query("SELECT * FROM events WHERE event_id=" + event_id, function(err,rows,fields){
+		connection.query("SELECT * FROM leaderboard_events WHERE event_id=" + event_id, function(err,rows,fields){
 			if (err){
 				console.log(err);
 				ret.error += 256;
@@ -245,7 +244,7 @@ app.post('/addResult',function(req,res){
 					add_team(clg_id,points,clg_name,position,event_id,ret,res);
 				}
 			};
-			connection.query("UPDATE events SET "+position+"_name='"+clg_name+"', "+position+"_id="+clg_id+", "+position+"_points="+points+" WHERE event_id="+event_id,function(err,rows,fields){
+			connection.query("UPDATE leaderboard_events SET "+position+"_name='"+clg_name+"', "+position+"_id="+clg_id+", "+position+"_points="+points+" WHERE event_id="+event_id,function(err,rows,fields){
 				if (err){
 					console.log(err);
 					ret.error += 4;
@@ -273,7 +272,7 @@ app.get("/leaderboard", function(req,res){
 });
 
 app.get("/eventlist",function(req,res){
-	connection.query("SELECT * FROM events", function(err,rows,fields){
+	connection.query("SELECT * FROM leaderboard_events", function(err,rows,fields){
 		if(err){
 			console.log(err);
 		}
@@ -282,7 +281,7 @@ app.get("/eventlist",function(req,res){
 });
 
 app.get("/eventlistshort",function(req,res){
-	connection.query("SELECT event_id, event_name FROM events", function(err,rows,fields){
+	connection.query("SELECT event_id, event_name FROM leaderboard_events", function(err,rows,fields){
 		if(err){
 			console.log(err);
 		}
@@ -350,28 +349,28 @@ app.post("/details",function(req,res){
 			}
 		};
 
-		connection.query("SELECT event_name, first_points FROM events WHERE"+ fstr,function(err,rows,fields){
+		connection.query("SELECT event_name, first_points FROM leaderboard_events WHERE"+ fstr,function(err,rows,fields){
 			if(err){
 				console.log("ERR 314");
 			}
 			//console.log(rows[0].event_name);
 			data.first = ((rows)?(rows):("-"));
 			console.log(data.first);
-			connection.query("SELECT event_name, second_points FROM events WHERE"+ sstr,function(err,rows,fields){
+			connection.query("SELECT event_name, second_points FROM leaderboard_events WHERE"+ sstr,function(err,rows,fields){
 				if(err){
 					console.log("ERR 314");
 				}
 				//console.log(rows[0].event_name);
 				data.second = ((rows)?(rows):('-'));
 				console.log("II: ",data.second);
-				connection.query("SELECT event_name, third_points FROM events WHERE"+ tstr,function(err,rows,fields){
+				connection.query("SELECT event_name, third_points FROM leaderboard_events WHERE"+ tstr,function(err,rows,fields){
 					if(err){
 						console.log("ERR 314");
 					}
 					//console.log(rows[0].event_name);
 					data.third = ((rows)?(rows):("-"));
 					console.log(data.first);
-					connection.query("SELECT event_name, fourth_points FROM events WHERE"+ fostr,function(err,rows,fields){
+					connection.query("SELECT event_name, fourth_points FROM leaderboard_events WHERE"+ fostr,function(err,rows,fields){
 						if(err){
 							console.log("ERR 314");
 						}
